@@ -1,0 +1,16 @@
+# Compiled programs (Dev-C++ creates main.exe from main.cpp)
+*.exe
+atm
+*.o
+*.obj
+*.out
+
+# Dev-C++ project files
+Makefile.win
+*.layout
+
+# Editor / OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
