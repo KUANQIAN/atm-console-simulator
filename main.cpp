@@ -112,6 +112,24 @@ string currentTimestamp() {
     return string(buffer);
 }
 
+// ==================================================================
+//  Input helpers (basic version - validation to be added later)
+// ==================================================================
+
+long long readWholeNumber(const string& prompt) {
+    long long value = 0;
+    cout << prompt;
+    cin >> value;
+    return value;
+}
+
+bool readYesNo(const string& prompt) {
+    char answer;
+    cout << prompt;
+    cin >> answer;
+    return answer == 'Y' || answer == 'y';
+}
+
 bool isFourDigitPin(const string& text) {
     if (text.length() != 4) {
         return false;
@@ -149,6 +167,35 @@ void displayCardBlocked() {
     printLine('=');
 }
 
+void displayMenu() {
+    printHeader("MAIN MENU");
+    cout << "  [1] Balance Inquiry\n"
+         << "  [2] Cash Withdrawal\n"
+         << "  [3] Cash Deposit\n"
+         << "  [4] Exit & Return Card\n"
+         << "  [5] About ATM Technology\n";
+    printLine('-');
+}
+
+// Links the program back to the Part 1 innovation life cycle poster.
+// Keep these lines consistent with the dates used on your poster.
+void showAboutAtm() {
+    printHeader("ABOUT ATM TECHNOLOGY");
+    cout << "  1966  James Goodfellow patents the idea of a\n"
+         << "        machine-readable card with a PIN.\n"
+         << "  1967  First cash dispenser opens at Barclays,\n"
+         << "        Enfield, London (John Shepherd-Barron).\n"
+         << "  1969  Magnetic-stripe cards used in US ATMs.\n"
+         << "  Today Networked ATMs offer 24/7 self-service.\n";
+    printLine('-');
+    cout << "  Features simulated in this program:\n"
+         << "   - PIN verification with 3-attempt card lockout\n"
+         << "   - Real-time balance check before dispensing\n"
+         << "   - Daily withdrawal limit (fraud control)\n"
+         << "   - Note-based dispensing and cash deposit\n"
+         << "   - Printed transaction receipt\n";
+}
+
 // ==================================================================
 //  Security: PIN authentication
 // ==================================================================
@@ -183,10 +230,27 @@ bool authenticatePin() {
 }
 
 // ==================================================================
-//  Main program
+//  Core transactions
+// ==================================================================
+
+void showBalance(long long balanceSen, long long withdrawnTodayRM) {
+    printHeader("BALANCE INQUIRY");
+    printRow("Account Holder", ACCOUNT_HOLDER);
+    printRow("Account Number", maskAccountNumber(ACCOUNT_NUMBER));
+    printRow("Available Balance", formatRM(balanceSen));
+    printRow("Withdrawn Today", formatRM(withdrawnTodayRM * SEN_PER_RM));
+    printRow("Daily Limit Left", formatRM((DAILY_LIMIT_RM - withdrawnTodayRM) * SEN_PER_RM));
+}
+
+
+// ==================================================================
+//  Main program: authentication, then the session loop
 // ==================================================================
 
 int main() {
+    long long balanceSen       = OPENING_BALANCE_SEN;
+    long long withdrawnTodayRM = 0;
+
     displayWelcomeScreen();
 
     if (!authenticatePin()) {
@@ -194,6 +258,35 @@ int main() {
         return 0;
     }
 
-    cout << "\n  Main menu coming soon.\n";
+    bool sessionActive = true;
+    do {
+        displayMenu();
+        long long choice = readWholeNumber("  Select an option (1-5): ");
+
+        switch (choice) {
+            case 1:
+                showBalance(balanceSen, withdrawnTodayRM);
+                break;
+            case 2:
+            case 3:
+                cout << "  This transaction is not available yet.\n";
+                break;
+            case 4:
+                sessionActive = false;
+                break;
+            case 5:
+                showAboutAtm();
+                break;
+            default:
+                cout << "  [!] Invalid option. Please choose a number from 1 to 5.\n";
+                continue;
+        }
+
+        if (sessionActive) {
+            sessionActive = readYesNo("\n  Perform another transaction? (Y/N): ");
+        }
+    } while (sessionActive);
+
+    cout << "\n  Please take your card. Goodbye!\n";
     return 0;
 }
