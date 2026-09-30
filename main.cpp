@@ -243,6 +243,40 @@ void showBalance(long long balanceSen, long long withdrawnTodayRM) {
 }
 
 
+void processWithdrawal(long long& balanceSen, long long& withdrawnTodayRM) {
+    printHeader("CASH WITHDRAWAL");
+    long long limitLeftRM = DAILY_LIMIT_RM - withdrawnTodayRM;
+    printRow("Available Balance", formatRM(balanceSen));
+    printRow("Daily Limit Left", formatRM(limitLeftRM * SEN_PER_RM));
+
+    long long amountRM = readWholeNumber("\n  Enter amount to withdraw (RM): ");
+
+    if (amountRM > balanceSen / SEN_PER_RM) {
+        cout << "  [X] Insufficient funds. Your available balance is "
+             << formatRM(balanceSen) << ".\n";
+    } else if (amountRM > limitLeftRM) {
+        cout << "  [X] Daily withdrawal limit exceeded. You can withdraw up to "
+             << formatRM(limitLeftRM * SEN_PER_RM) << " more today.\n";
+    } else {
+        balanceSen       -= amountRM * SEN_PER_RM;
+        withdrawnTodayRM += amountRM;
+        cout << "  [OK] Please collect " << formatRM(amountRM * SEN_PER_RM)
+             << ". New balance: " << formatRM(balanceSen) << '\n';
+    }
+}
+
+void processDeposit(long long& balanceSen) {
+    printHeader("CASH DEPOSIT");
+    long long amountRM = readWholeNumber("\n  Enter amount to deposit (RM): ");
+
+    if (amountRM <= 0) {
+        cout << "  [X] Invalid amount. Deposit must be greater than zero.\n";
+    } else {
+        balanceSen += amountRM * SEN_PER_RM;
+        cout << "  [OK] Deposit successful. New balance: " << formatRM(balanceSen) << '\n';
+    }
+}
+
 // ==================================================================
 //  Main program: authentication, then the session loop
 // ==================================================================
@@ -268,8 +302,10 @@ int main() {
                 showBalance(balanceSen, withdrawnTodayRM);
                 break;
             case 2:
+                processWithdrawal(balanceSen, withdrawnTodayRM);
+                break;
             case 3:
-                cout << "  This transaction is not available yet.\n";
+                processDeposit(balanceSen);
                 break;
             case 4:
                 sessionActive = false;
