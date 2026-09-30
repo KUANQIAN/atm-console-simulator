@@ -112,6 +112,18 @@ string currentTimestamp() {
     return string(buffer);
 }
 
+bool isFourDigitPin(const string& text) {
+    if (text.length() != 4) {
+        return false;
+    }
+    for (char ch : text) {
+        if (!isdigit(static_cast<unsigned char>(ch))) {
+            return false;
+        }
+    }
+    return true;
+}
+
 // ==================================================================
 //  Screens
 // ==================================================================
@@ -128,11 +140,60 @@ void displayWelcomeScreen() {
     cout << "  Shield the keypad when entering your PIN.\n";
 }
 
+void displayCardBlocked() {
+    printHeader("CARD BLOCKED");
+    cout << "  Too many incorrect PIN attempts (" << MAX_PIN_ATTEMPTS << "/"
+         << MAX_PIN_ATTEMPTS << ").\n"
+         << "  Your card has been retained for security.\n"
+         << "  Please contact your bank branch to reactivate it.\n";
+    printLine('=');
+}
+
+// ==================================================================
+//  Security: PIN authentication
+// ==================================================================
+
+// Returns true when the correct PIN is entered within 3 attempts.
+bool authenticatePin() {
+    int attemptsUsed = 0;
+    string enteredPin;
+
+    while (attemptsUsed < MAX_PIN_ATTEMPTS) {
+        cout << "\n  Enter your 4-digit PIN: ";
+        cin >> enteredPin;
+
+        if (!isFourDigitPin(enteredPin)) {
+            cout << "  [!] Invalid format. PIN must be exactly 4 digits (0-9).\n";
+        } else if (enteredPin == CORRECT_PIN) {
+            cout << "  [OK] PIN verified. Welcome, " << ACCOUNT_HOLDER << ".\n";
+            return true;
+        } else {
+            attemptsUsed++;
+            int remaining = MAX_PIN_ATTEMPTS - attemptsUsed;
+            if (remaining > 0) {
+                cout << "  [X] Incorrect PIN. " << remaining << " attempt"
+                     << (remaining == 1 ? "" : "s") << " remaining.\n";
+                if (remaining == 1) {
+                    cout << "  [!] WARNING: One more wrong PIN will block your card.\n";
+                }
+            }
+        }
+    }
+    return false;
+}
+
 // ==================================================================
 //  Main program
 // ==================================================================
 
 int main() {
     displayWelcomeScreen();
+
+    if (!authenticatePin()) {
+        displayCardBlocked();
+        return 0;
+    }
+
+    cout << "\n  Main menu coming soon.\n";
     return 0;
 }
