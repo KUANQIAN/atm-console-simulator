@@ -45,8 +45,32 @@ const long long MAX_DEPOSIT_RM       = 5000;     // per-transaction deposit cap
 const int       SCREEN_WIDTH         = 52;
 
 // ==================================================================
-//  Money calculation helpers
+//  Display helpers
 // ==================================================================
+
+void printLine(char symbol = '=') {
+    cout << string(SCREEN_WIDTH, symbol) << '\n';
+}
+
+void printCentered(const string& text) {
+    int padding = (SCREEN_WIDTH - static_cast<int>(text.length())) / 2;
+    if (padding < 0) {
+        padding = 0;
+    }
+    cout << string(padding, ' ') << text << '\n';
+}
+
+void printHeader(const string& title) {
+    cout << '\n';
+    printLine('=');
+    printCentered(title);
+    printLine('=');
+}
+
+// Prints "  Label ............ : value" in aligned columns
+void printRow(const string& label, const string& value) {
+    cout << "  " << left << setw(22) << label << ": " << value << '\n';
+}
 
 // Converts sen to a readable string, e.g. 125075 -> "RM 1,250.75"
 string formatRM(long long sen) {
@@ -72,16 +96,43 @@ string formatRM(long long sen) {
     return string(isNegative ? "-" : "") + "RM " + withCommas + "." + centsText;
 }
 
+// Hides all but the last 4 digits, e.g. "******7890"
+string maskAccountNumber(const string& accountNumber) {
+    if (accountNumber.length() <= 4) {
+        return accountNumber;
+    }
+    return string(accountNumber.length() - 4, '*') +
+           accountNumber.substr(accountNumber.length() - 4);
+}
+
+string currentTimestamp() {
+    time_t now = time(nullptr);
+    char buffer[25];
+    strftime(buffer, sizeof(buffer), "%d/%m/%Y %H:%M:%S", localtime(&now));
+    return string(buffer);
+}
+
+// ==================================================================
+//  Screens
+// ==================================================================
+
+void displayWelcomeScreen() {
+    cout << '\n';
+    printLine('*');
+    printCentered(BANK_NAME);
+    printCentered("AUTOMATED TELLER MACHINE");
+    printLine('*');
+    printCentered("Please insert your card...");
+    printCentered("[ Card detected: " + maskAccountNumber(ACCOUNT_NUMBER) + " ]");
+    printLine('-');
+    cout << "  Shield the keypad when entering your PIN.\n";
+}
 
 // ==================================================================
 //  Main program
 // ==================================================================
 
 int main() {
-    long long balanceSen = OPENING_BALANCE_SEN;
-
-    cout << "Account number        : " << ACCOUNT_NUMBER << '\n';
-    cout << "Opening balance       : " << formatRM(balanceSen) << '\n';
-    cout << "Daily withdrawal limit: " << formatRM(DAILY_LIMIT_RM * SEN_PER_RM) << '\n';
+    displayWelcomeScreen();
     return 0;
 }
