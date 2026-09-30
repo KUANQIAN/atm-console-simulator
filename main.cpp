@@ -44,6 +44,15 @@ const long long NOTE_MULTIPLE_RM     = 10;       // smallest note the machine ha
 const long long MAX_DEPOSIT_RM       = 5000;     // per-transaction deposit cap
 const int       SCREEN_WIDTH         = 52;
 
+// One record in the session's transaction history
+struct Transaction {
+    int       reference;
+    string    type;
+    long long amountSen;
+    long long balanceAfterSen;
+    string    timestamp;
+};
+
 // ==================================================================
 //  Display helpers
 // ==================================================================
@@ -177,6 +186,23 @@ void displayMenu() {
     printLine('-');
 }
 
+void printReceipt(const Transaction& record) {
+    cout << '\n';
+    printLine('-');
+    printCentered(BANK_NAME);
+    printCentered("TRANSACTION RECEIPT");
+    printLine('-');
+    printRow("Date / Time", record.timestamp);
+    printRow("Reference No.", "TXN" + to_string(record.reference));
+    printRow("Account", maskAccountNumber(ACCOUNT_NUMBER));
+    printRow("Transaction", record.type);
+    printRow("Amount", formatRM(record.amountSen));
+    printRow("Available Balance", formatRM(record.balanceAfterSen));
+    printLine('-');
+    printCentered("Thank you for banking with us");
+    printLine('-');
+}
+
 // Links the program back to the Part 1 innovation life cycle poster.
 // Keep these lines consistent with the dates used on your poster.
 void showAboutAtm() {
@@ -243,38 +269,107 @@ void showBalance(long long balanceSen, long long withdrawnTodayRM) {
 }
 
 
-void processWithdrawal(long long& balanceSen, long long& withdrawnTodayRM) {
+// Splits the amount into the fewest notes (largest note first)
+void dispenseNotes(long long amountRM) {
+    const int NOTE_VALUES[] = {50, 20, 10};
+    cout << "\n  Dispensing cash, please collect your notes:\n";
+    for (int note : NOTE_VALUES) {
+        long long count = amountRM / note;
+        amountRM = amountRM % note;
+        if (count > 0) {
+            cout << "    RM" << setw(3) << left << note << " x " << count << '\n';
+        }
+    }
+}
+
+void processWithdrawal(long long& balanceSen, long long& withdrawnTodayRM,
+                       vector<Transaction>& history) {
     printHeader("CASH WITHDRAWAL");
     long long limitLeftRM = DAILY_LIMIT_RM - withdrawnTodayRM;
     printRow("Available Balance", formatRM(balanceSen));
     printRow("Daily Limit Left", formatRM(limitLeftRM * SEN_PER_RM));
+    printRow("Notes Available", "RM50, RM20, RM10");
 
     long long amountRM = readWholeNumber("\n  Enter amount to withdraw (RM): ");
 
-    if (amountRM > balanceSen / SEN_PER_RM) {
+    // Validation order: sign -> minimum -> note multiple -> balance -> daily limit
+    if (amountRM <= 0) {
+        cout << "  [X] Amount must be greater than zero.\n";
+    } else if (amountRM < MIN_AMOUNT_RM) {
+        cout << "  [X] Minimum withdrawal is RM" << MIN_AMOUNT_RM << ".\n";
+    } else if (amountRM % NOTE_MULTIPLE_RM != 0) {
+        cout << "  [X] Amount must be in multiples of RM" << NOTE_MULTIPLE_RM
+             << " (notes only).\n";
+    } else if (amountRM > balanceSen / SEN_PER_RM) {
+        // Integer comparison avoids overflow for very large inputs
         cout << "  [X] Insufficient funds. Your available balance is "
              << formatRM(balanceSen) << ".\n";
     } else if (amountRM > limitLeftRM) {
         cout << "  [X] Daily withdrawal limit exceeded. You can withdraw up to "
              << formatRM(limitLeftRM * SEN_PER_RM) << " more today.\n";
     } else {
+        if (!readYesNo("  Confirm withdrawal of " + formatRM(amountRM * SEN_PER_RM) + "? (Y/N): ")) {
+            cout << "  Transaction cancelled. No money was deducted.\n";
+            return;
+        }
         balanceSen       -= amountRM * SEN_PER_RM;
         withdrawnTodayRM += amountRM;
-        cout << "  [OK] Please collect " << formatRM(amountRM * SEN_PER_RM)
-             << ". New balance: " << formatRM(balanceSen) << '\n';
+
+        Transaction record = {static_cast<int>(history.size()) + 1001, "Cash Withdrawal",
+                              amountRM * SEN_PER_RM, balanceSen, currentTimestamp()};
+        history.push_back(record);
+
+        dispenseNotes(amountRM);
+        printReceipt(record);
     }
 }
 
-void processDeposit(long long& balanceSen) {
+void processDeposit(long long& balanceSen, vector<Transaction>& history) {
     printHeader("CASH DEPOSIT");
+    cout << "  Accepted notes: RM10, RM20, RM50, RM100\n"
+         << "  Coins are not accepted.\n";
+
     long long amountRM = readWholeNumber("\n  Enter amount to deposit (RM): ");
 
     if (amountRM <= 0) {
         cout << "  [X] Invalid amount. Deposit must be greater than zero.\n";
+    } else if (amountRM % NOTE_MULTIPLE_RM != 0) {
+        cout << "  [X] Amount must be in multiples of RM" << NOTE_MULTIPLE_RM
+             << " (notes only).\n";
+    } else if (amountRM > MAX_DEPOSIT_RM) {
+        cout << "  [X] Maximum deposit per transaction is "
+             << formatRM(MAX_DEPOSIT_RM * SEN_PER_RM) << ".\n";
     } else {
         balanceSen += amountRM * SEN_PER_RM;
+
+        Transaction record = {static_cast<int>(history.size()) + 1001, "Cash Deposit",
+                              amountRM * SEN_PER_RM, balanceSen, currentTimestamp()};
+        history.push_back(record);
+
         cout << "  [OK] Deposit successful. New balance: " << formatRM(balanceSen) << '\n';
+        printReceipt(record);
     }
+}
+
+void displaySessionSummary(const vector<Transaction>& history, long long balanceSen) {
+    printHeader("SESSION SUMMARY");
+    if (history.empty()) {
+        cout << "  No transactions were made in this session.\n";
+    } else {
+        cout << "  " << left << setw(10) << "Ref" << setw(18) << "Type"
+             << right << setw(18) << "Amount" << '\n';
+        printLine('-');
+        for (const Transaction& record : history) {
+            cout << "  " << left << setw(10) << ("TXN" + to_string(record.reference))
+                 << setw(18) << record.type
+                 << right << setw(18) << formatRM(record.amountSen) << '\n';
+        }
+    }
+    printLine('-');
+    printRow("Closing Balance", formatRM(balanceSen));
+    printLine('=');
+    printCentered("Please take your card. Goodbye!");
+    printLine('=');
 }
 
 // ==================================================================
@@ -284,6 +379,7 @@ void processDeposit(long long& balanceSen) {
 int main() {
     long long balanceSen       = OPENING_BALANCE_SEN;
     long long withdrawnTodayRM = 0;
+    vector<Transaction> history;
 
     displayWelcomeScreen();
 
@@ -302,10 +398,10 @@ int main() {
                 showBalance(balanceSen, withdrawnTodayRM);
                 break;
             case 2:
-                processWithdrawal(balanceSen, withdrawnTodayRM);
+                processWithdrawal(balanceSen, withdrawnTodayRM, history);
                 break;
             case 3:
-                processDeposit(balanceSen);
+                processDeposit(balanceSen, history);
                 break;
             case 4:
                 sessionActive = false;
@@ -315,7 +411,7 @@ int main() {
                 break;
             default:
                 cout << "  [!] Invalid option. Please choose a number from 1 to 5.\n";
-                continue;
+                continue;   // show the menu again straight away
         }
 
         if (sessionActive) {
@@ -323,6 +419,6 @@ int main() {
         }
     } while (sessionActive);
 
-    cout << "\n  Please take your card. Goodbye!\n";
+    displaySessionSummary(history, balanceSen);
     return 0;
 }
