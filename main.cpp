@@ -122,21 +122,74 @@ string currentTimestamp() {
 }
 
 // ==================================================================
-//  Input helpers (basic version - validation to be added later)
+//  Input validation helpers (defensive programming)
 // ==================================================================
 
+// If the input stream closes (e.g. Ctrl+Z / Ctrl+D), end safely
+// instead of looping forever.
+void terminateOnEndOfInput() {
+    cout << "\n\n  [!] Input stream closed. Session terminated for security.\n";
+    exit(0);
+}
+
+// Reads what is left on the current line and reports whether it was
+// empty. This catches inputs such as "12abc" or "50.5", where cin
+// would otherwise accept the "12" or "50" and silently drop the rest.
+bool restOfLineIsEmpty() {
+    string rest;
+    getline(cin, rest);
+    for (char ch : rest) {
+        if (!isspace(static_cast<unsigned char>(ch))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Keeps asking until the user types a valid whole number.
+// Uses cin.fail() so letters can never cause an infinite loop.
 long long readWholeNumber(const string& prompt) {
     long long value = 0;
-    cout << prompt;
-    cin >> value;
-    return value;
+    while (true) {
+        cout << prompt;
+        cin >> value;
+
+        if (cin.fail()) {
+            if (cin.eof()) {
+                terminateOnEndOfInput();
+            }
+            cin.clear();                                          // reset the error flag
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');  // throw away the bad input
+            cout << "  [!] Invalid input. Please enter numbers only.\n";
+            continue;
+        }
+
+        if (!restOfLineIsEmpty()) {
+            cout << "  [!] Invalid input. Enter a whole number only"
+                    " (no letters, decimals or spaces).\n";
+            continue;
+        }
+        return value;
+    }
 }
 
 bool readYesNo(const string& prompt) {
-    char answer;
-    cout << prompt;
-    cin >> answer;
-    return answer == 'Y' || answer == 'y';
+    string answer;
+    while (true) {
+        cout << prompt;
+        if (!(cin >> answer)) {
+            terminateOnEndOfInput();
+        }
+        bool singleWord = restOfLineIsEmpty();
+
+        if (singleWord && (answer == "Y" || answer == "y")) {
+            return true;
+        } else if (singleWord && (answer == "N" || answer == "n")) {
+            return false;
+        } else {
+            cout << "  [!] Please enter Y or N only.\n";
+        }
+    }
 }
 
 bool isFourDigitPin(const string& text) {
@@ -227,15 +280,21 @@ void showAboutAtm() {
 // ==================================================================
 
 // Returns true when the correct PIN is entered within 3 attempts.
+// Wrongly formatted input (letters, wrong length) is rejected without
+// using up an attempt, because a real ATM keypad only has digits.
 bool authenticatePin() {
     int attemptsUsed = 0;
     string enteredPin;
 
     while (attemptsUsed < MAX_PIN_ATTEMPTS) {
         cout << "\n  Enter your 4-digit PIN: ";
-        cin >> enteredPin;
+        if (!(cin >> enteredPin)) {
+            terminateOnEndOfInput();
+        }
 
-        if (!isFourDigitPin(enteredPin)) {
+        if (!restOfLineIsEmpty()) {
+            cout << "  [!] PIN must not contain spaces.\n";
+        } else if (!isFourDigitPin(enteredPin)) {
             cout << "  [!] Invalid format. PIN must be exactly 4 digits (0-9).\n";
         } else if (enteredPin == CORRECT_PIN) {
             cout << "  [OK] PIN verified. Welcome, " << ACCOUNT_HOLDER << ".\n";
@@ -267,7 +326,6 @@ void showBalance(long long balanceSen, long long withdrawnTodayRM) {
     printRow("Withdrawn Today", formatRM(withdrawnTodayRM * SEN_PER_RM));
     printRow("Daily Limit Left", formatRM((DAILY_LIMIT_RM - withdrawnTodayRM) * SEN_PER_RM));
 }
-
 
 // Splits the amount into the fewest notes (largest note first)
 void dispenseNotes(long long amountRM) {
